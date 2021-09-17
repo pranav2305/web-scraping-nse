@@ -1,12 +1,16 @@
 from bs4 import BeautifulSoup
 import requests
 from pymongo import MongoClient
+import feedparser
+from datetime import datetime
+from time import mktime
 
 client = MongoClient('mongodb://localhost:27017/')
 db = client["nseDB"]
 market_pulse = db["market_pulse"]
 macro_report = db["macro_report"]
 market_report = db["market_report"]
+sec_report = db["sec_report"]
 files = db["files"]
 
 def get_data(url):
@@ -68,3 +72,17 @@ for file in all_files:
         })
 if data:
     market_report.insert_many(data)
+
+rss_feed = feedparser.parse("https://sec.report/Form/S-1.rss").entries
+data = []
+for feed in rss_feed:
+    if not sec_report.find_one({"_id": feed.id}):
+        data.append({
+            "_id" : feed.id,
+            "title": feed.title,
+            "links": [link.href for link in feed.links],
+            "summary": feed.summary,
+            "date": datetime.fromtimestamp(mktime(feed.published_parsed))
+        })
+if data:
+    sec_report.insert_many(data)
